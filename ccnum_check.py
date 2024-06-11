@@ -3,7 +3,7 @@
 Created on Thu May 30 16:17:17 2024
 
 @author: Sadaf
-
+hi
 Luhn algorithm:
     starting from first digit, double every other digit (double digits 1, 3, 5, etc.)
     if a doubled digit = 2 digits, then split it into it's 2 digits 
