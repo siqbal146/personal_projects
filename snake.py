@@ -8,9 +8,10 @@
 # increase game speed as score increases 
 # added start text and game over text
 # added a key/movement queue so user can't turn around too fast and run into themselves
+# added eyes to the snake :)
 
 # issues: 
-# to add: face to snake, bombs (explode after 5sec, if tail is in radius it breaks tail, break wall? (big task), bomb visuals), instructions?
+# to add: bombs (explode after 5sec, if tail is in radius it breaks tail, break wall? (big task), bomb visuals), instructions?
 
 import pygame as pg #pygame library
 from random import randrange #specifically import randrange function from random module
@@ -33,10 +34,14 @@ snake = pg.rect.Rect([0, 0, TILE_SIZE - 2, TILE_SIZE - 2]) #define the head of t
 snake.center = get_random_position() #define snake head random position on grid
 length = 1 #length of snake
 segments = [snake.copy()] #list where snake segments will be stored. first segment is placed as a copy
+#rect(x,y,width,height)
+eye_size = 5
+eye1 = pg.Rect(segments[0][0]+5,segments[0][1]+5,eye_size,eye_size)
+eye2 = pg.Rect(segments[0][0]+TILE_SIZE-12,segments[0][1]+5,eye_size,eye_size)
 #movement parameters/objects
 snake_dir = (0,0) #define a direction for the snake to make it move
 move_queue = deque() #create queue to store upcoming moves
-opp_keys = {pg.K_w: pg.K_s, pg.K_a: pg.K_d, pg.K_s: pg.K_w, pg.K_d: pg.K_a} #match opposite keys for the key delay function
+opp_keys = {pg.K_w: pg.K_s, pg.K_a: pg.K_d, pg.K_s: pg.K_w, pg.K_d: pg.K_a} #match opposite keys for the key tracker (can't hit s if moving in w direction)
 available_dirs = {pg.K_w: 1, pg.K_s: 1, pg.K_a: 1, pg.K_d: 1} #use this direction to prevent the snake from moving back on itself (if going in d direction, don't do anything when user hits a)
 move_dirs = {pg.K_w: (0, -TILE_SIZE), pg.K_s: (0, TILE_SIZE), pg.K_a: (-TILE_SIZE, 0), pg.K_d: (TILE_SIZE, 0)} #directions associated with each keystroke 
 
@@ -95,17 +100,16 @@ while True:
         game_over_rect = game_over.get_rect(midbottom=(SCREEN_WIDTH//2,end_score_rect.top)) #display game over above score
         continue_text_rect = continue_text.get_rect(midtop=(SCREEN_WIDTH//2,end_score_rect.bottom)) #display continue text below score
         screen.blit(end_score,end_score_rect), screen.blit(game_over,game_over_rect), screen.blit(continue_text,continue_text_rect)
-        # end_text_rect = end_text.get_rect(center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2))
-        # screen.blit(end_text,end_text_rect)
         pg.display.flip() #update the screen
-
-        while event.type != pg.KEYDOWN:
+        while event.type != pg.KEYDOWN: #wait for user to press key before restarting the game
             event = pg.event.wait()
             if event.type == pg.QUIT:
                 exit()
         snake.center, food.center = get_random_position(), get_random_position() #reset snake and food in random position
         length, snake_dir = 1, (0,0) #reduce snake length to 1, pause snake movement
         segments = [snake.copy()] #reset snake segments
+        eye1 = pg.Rect(segments[0][0]+5,segments[0][1]+5,eye_size,eye_size) #reset eye position
+        eye2 = pg.Rect(segments[0][0]+TILE_SIZE-12,segments[0][1]+5,eye_size,eye_size)
         available_dirs = {pg.K_w: 1, pg.K_s: 1, pg.K_a: 1, pg.K_d: 1} #reset direction dict so you can start in any direction
         score = 0 #reset scored
         time_step = 110 #reset game speed
@@ -125,7 +129,8 @@ while True:
     [pg.draw.rect(screen,(255,0,0), food)]
     #draw snake
     [pg.draw.rect(screen, (0,255,0), segment) for segment in segments] #list comprehension, go through segments and draw each 1 using the draw.rect function
-    
+    pg.draw.rect(screen,'black',eye1)
+    pg.draw.rect(screen,'black',eye2)
     #start text, only show when snake isn't moving
     if snake_dir == (0,0):
         start_text = font.render('START GAME WITH WASD',True,(255,255,0))
@@ -148,6 +153,8 @@ while True:
             
         time = time_now
         snake.move_ip(snake_dir)
+        eye1.move_ip(snake_dir)
+        eye2.move_ip(snake_dir)
         segments.append(snake.copy())
         segments = segments[-length:] #record path of snake and leave last steps by length of the snake
 
