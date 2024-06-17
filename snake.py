@@ -6,12 +6,12 @@
 # my modifications: 
 # adjusted screen display to include a border and a score board, and added score counter
 # increase game speed as score increases 
-# added start text and game over text
+# added start text and game over text (and press space to try again feature)
 # added a key/movement queue so user can't turn around too fast and run into themselves
 # added eyes to the snake :)
+# added bombs: deploy at random intervals once score is >5, and disappear after a specified time
 
-# issues: 
-# to add: bombs (explode after 5sec, if tail is in radius it breaks tail, break wall? (big task), bomb visuals), instructions?
+# to add: bombs: add bomb visuals (graphic and explosion graphic), bomb radius, increase frequency interval as points increse, destory tail if tail in radius
 
 import pygame as pg #pygame library
 from random import randrange #specifically import randrange function from random module
@@ -34,10 +34,10 @@ snake = pg.rect.Rect([0, 0, TILE_SIZE - 2, TILE_SIZE - 2]) #define the head of t
 snake.center = get_random_position() #define snake head random position on grid
 length = 1 #length of snake
 segments = [snake.copy()] #list where snake segments will be stored. first segment is placed as a copy
-#rect(x,y,width,height)
+#eyes
 eye_size = 5
-eye1 = pg.Rect(segments[0][0]+5,segments[0][1]+5,eye_size,eye_size)
-eye2 = pg.Rect(segments[0][0]+TILE_SIZE-12,segments[0][1]+5,eye_size,eye_size)
+eye = pg.Surface((eye_size,eye_size)) #create eye surface that will be 'blit'ed onto snake head
+
 #movement parameters/objects
 snake_dir = (0,0) #define a direction for the snake to make it move
 move_queue = deque() #create queue to store upcoming moves
@@ -51,12 +51,26 @@ time, time_step = 0, 110 #time step is delay in ms
 #define variables to determine the food for the snake
 food = snake.copy() #use copy of the snakes head to make the food variable (since it looks the same anyway)
 food.center = get_random_position() #assign food a random position
+#bomb - create the bomb rectangle, blit the image of the bomb onto it
+bomb_size = snake.copy()
+bomb_active_time = 5000 #milliseconds
+bomb_deploy_time = 0 #track the last time a bomb was deployed
+bomb_active = 0 #track if there is a bomb on screen or not
+bomb_size.center = (SCREEN_WIDTH+TILE_SIZE,0) #initalize bomb location off-grid, where snake can't hit it and where it won't auto game over (since snake head is at (0,0))
 
 screen = pg.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT]) #create a screen with given resolution
 clock = pg.time.Clock() #create instance of clock class to set frame rate
 font = pg.font.SysFont('ocraextended', 36) #set up font object
 
 score = 0 #initialize score to 0
+
+#render fonts that don't change
+start_text = font.render('START GAME WITH WASD',True,(255,255,0))
+start_text_rect = start_text.get_rect(center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2))
+game_over = font.render('GAME OVER :(',True,('red'))
+continue_text = font.render('Press SPACE to try again',True,('yellow'))
+RIP_text = font.render('x_x',True,'white')
+RIP_text_rect = RIP_text.get_rect(center=(SCREEN_WIDTH//2,SCORE_BOARD//2))
 
 #main loop of the program
 while True:
@@ -90,32 +104,34 @@ while True:
     pg.draw.line(screen,(255,255,255),[0,SCREEN_HEIGHT-BORDER_SIZE//2],[SCREEN_WIDTH,SCREEN_HEIGHT-BORDER_SIZE//2],BORDER_SIZE) #bottom border
     pg.draw.line(screen,(255,255,255),[0,SCORE_BOARD+BORDER_SIZE//2],[SCREEN_WIDTH,SCORE_BOARD+BORDER_SIZE//2],BORDER_SIZE) #score board border
 
-    #Game over: check borders and snake tail position
+    #Game over: check borders, snake tail position, and bomb vs snake head position
     self_eating = pg.Rect.collidelist(snake, segments[:-1]) != -1 #function to check if snakes head collides with rest of it's body. it will be true when a collision is detected
-    if snake.left < BORDER_SIZE or snake.right > (SCREEN_WIDTH-BORDER_SIZE) or snake.top < (SCORE_BOARD+BORDER_SIZE) or snake.bottom > (SCREEN_HEIGHT-BORDER_SIZE) or self_eating:
-        game_over = font.render('GAME OVER :(',True,('red'))
+    if snake.left < BORDER_SIZE or snake.right > (SCREEN_WIDTH-BORDER_SIZE) or snake.top < (SCORE_BOARD+BORDER_SIZE) or snake.bottom > (SCREEN_HEIGHT-BORDER_SIZE) or self_eating or bomb_size.center==snake.center:
         end_score = font.render(f'SCORE: {score}', True,('yellow'))
-        continue_text = font.render('Press any key to try again',True,('yellow'))
         end_score_rect = end_score.get_rect(center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2)) #center score on screen
         game_over_rect = game_over.get_rect(midbottom=(SCREEN_WIDTH//2,end_score_rect.top)) #display game over above score
         continue_text_rect = continue_text.get_rect(midtop=(SCREEN_WIDTH//2,end_score_rect.bottom)) #display continue text below score
-        screen.blit(end_score,end_score_rect), screen.blit(game_over,game_over_rect), screen.blit(continue_text,continue_text_rect)
+        screen.blit(end_score,end_score_rect), screen.blit(game_over,game_over_rect), screen.blit(continue_text,continue_text_rect), screen.blit(RIP_text,RIP_text_rect)
         pg.display.flip() #update the screen
-        while event.type != pg.KEYDOWN: #wait for user to press key before restarting the game
-            event = pg.event.wait()
-            if event.type == pg.QUIT:
-                exit()
+        input_wait = 1 #track if we are waiting for user input or not
+        while input_wait==1: #wait for user to press space before restarting the game
+             for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    exit()
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_SPACE:
+                        input_wait = 0
+        #restart game
         snake.center, food.center = get_random_position(), get_random_position() #reset snake and food in random position
         length, snake_dir = 1, (0,0) #reduce snake length to 1, pause snake movement
         segments = [snake.copy()] #reset snake segments
-        eye1 = pg.Rect(segments[0][0]+5,segments[0][1]+5,eye_size,eye_size) #reset eye position
-        eye2 = pg.Rect(segments[0][0]+TILE_SIZE-12,segments[0][1]+5,eye_size,eye_size)
         available_dirs = {pg.K_w: 1, pg.K_s: 1, pg.K_a: 1, pg.K_d: 1} #reset direction dict so you can start in any direction
         score = 0 #reset scored
+        bomb_size.center = (SCREEN_WIDTH+TILE_SIZE,0) #reset bomb position out of screen
         time_step = 110 #reset game speed
         
 
-    #check positions of snake and food
+    #check positions of snake, food, and bombs
     if snake.center == food.center:
         food.center = get_random_position()
         length +=1
@@ -125,16 +141,19 @@ while True:
     food_in_tail = pg.Rect.collidelist(food, segments[:-1]) != -1 #check if food is in snake body. true when food is in tail
     if food_in_tail:
         food.center = get_random_position()
+    
+
     #draw food
-    [pg.draw.rect(screen,(255,0,0), food)]
+    [pg.draw.rect(screen,(255,165,0), food)]
     #draw snake
     [pg.draw.rect(screen, (0,255,0), segment) for segment in segments] #list comprehension, go through segments and draw each 1 using the draw.rect function
-    pg.draw.rect(screen,'black',eye1)
-    pg.draw.rect(screen,'black',eye2)
+
+    #draw eyes on snake head
+    screen.blit(eye,(segments[-1][0]+5,segments[-1][1]+5,eye_size,eye_size))
+    screen.blit(eye,(segments[-1][0]+TILE_SIZE-2-5-eye_size,segments[-1][1]+5,eye_size,eye_size))
+    
     #start text, only show when snake isn't moving
     if snake_dir == (0,0):
-        start_text = font.render('START GAME WITH WASD',True,(255,255,0))
-        start_text_rect = start_text.get_rect(center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2))
         screen.blit(start_text,start_text_rect)
 
     #draw the score
@@ -145,6 +164,29 @@ while True:
     #move snake's head using move and place function
     #track time interval to define when snake takes next step
     time_now = pg.time.get_ticks()
+
+    #draw bomb
+    #once score greater than 10, get a random number and a time counter. if num == time counter, place bomb in random position
+    #tighten the time range as the score increases (maybe every 10 points, timer decreases by x ms or whatever)
+    #also need a bomb counter, bomb disappears after 5 seconds
+    #will need to move get random pos for bomb
+    if bomb_active == 0 and snake_dir != (0,0) and score >= 5:
+        if bomb_deploy_time == 0:
+            bomb_deploy_time = randrange(5000,10000) #choose a random time to deploy a bomb
+            deploy_timer = time_now #use this to determine how long to wait before deploying bomb, based on bomb_deploy_time
+        if time_now-deploy_timer > bomb_deploy_time:
+            bomb_deployed_at = time_now
+            bomb_size.center = get_random_position() #place the bomb on screen
+            bomb_in_snake = pg.Rect.collidelist(bomb_size, segments[:-1]) != -1 #check if bomb is in snake body
+            if bomb_in_snake or bomb_size.center == (snake.center or food.center or (snake.center[0]-TILE_SIZE*2,snake.center[1]-TILE_SIZE*2)): #make sure bomb doesn't deploy right in front of character, or under food or body
+                bomb_size.center = get_random_position
+            bomb_active = 1
+    [pg.draw.rect(screen,(255,0,0),bomb_size)] #draw the bomb
+    if bomb_active == 1 and time_now-bomb_deployed_at>bomb_active_time:
+        bomb_size.center = (SCREEN_WIDTH+TILE_SIZE,0) #bomb goes off (goes out of screen)
+        bomb_active = 0 #no bomb active on screen anymore
+        bomb_deploy_time = 0 #reset so we can get a new rand numb for deploy time
+
     if time_now - time > time_step:
         if move_queue:
             #snake direction, available_dirs
@@ -153,8 +195,6 @@ while True:
             
         time = time_now
         snake.move_ip(snake_dir)
-        eye1.move_ip(snake_dir)
-        eye2.move_ip(snake_dir)
         segments.append(snake.copy())
         segments = segments[-length:] #record path of snake and leave last steps by length of the snake
 
